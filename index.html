@@ -466,6 +466,13 @@ const CONFIG = {
     mainTitle:   { x: 62,  y: 503, w: 1646, h: 200, fontSize: 90, lineSpacingMultiple: 1.1 },
     speaker:     { x: 70,  y: 911, w: 678,  h: 38,  fontSize: 30, bold: true },
     affiliation: { x: 70,  y: 949, w: 800,  h: 28,  fontSize: 20 },
+
+    // Main Title이 길어지면 폰트를 점진적으로 축소 (최대 2줄까지 허용)
+    titleAutoFit: {
+      minFontSize: 50,    // 더 줄일 수 있는 최소 (기본 90px → 최소 50px)
+      step:         2,    // 한 번에 줄이는 단위
+      maxLines:     2,    // 허용하는 최대 줄 수
+    },
   },
 
   // ─── 2. 목차 (Agenda) ──────────────────────────────────────────
@@ -489,8 +496,8 @@ const CONFIG = {
     overview: { w: 690, h: 22, fontSize: 20, color: '696969' },
 
     // Title이 길어서 2줄 이상이 될 때 적용 (한 행 내에서)
+    // ※ 폰트 크기는 줄이지 않음 — 줄바꿈만 자연스럽게 처리하고 행 높이 조정
     titleAutoFit: {
-      multilineFontSize: 26,    // 여러 줄일 때 폰트 (1줄: 35px, 2줄+: 26px)
       lineHeight:        1.2,   // 줄 간격
       overviewGap:       8,     // Title 박스 끝과 Overview 사이 간격 (px)
     },
@@ -535,6 +542,9 @@ const S = px => parseFloat((px * (10 / 1920)).toFixed(4));
 const F = px => parseFloat((px * 0.375).toFixed(1));
 
 // CONFIG 객체 → pptxgenjs 옵션 객체 변환
+// shrinkText는 기본 false — 각 텍스트 박스가 완전히 독립적으로 동작하며,
+// 우리가 fit 함수로 계산한 폰트 크기가 PowerPoint의 자동 축소에 의해 변경되지 않음.
+// (자동 축소가 필요한 박스는 명시적으로 { shrinkText: true } 전달)
 function opt(c, override = {}) {
   const o = { ...c, ...override };
   return {
@@ -545,27 +555,52 @@ function opt(c, override = {}) {
     bold: !!o.bold,
     align: o.align || 'left',
     margin: 0,
-    shrinkText: o.shrinkText !== false,
+    shrinkText: !!o.shrinkText,  // 기본 false
     ...(o.lineSpacingMultiple ? { lineSpacingMultiple: o.lineSpacingMultiple } : {}),
   };
 }
 
-// 텍스트가 주어진 너비에 몇 줄로 표시될지 추정 (Canvas measureText 사용)
-// Pretendard 기준 — 한글/영문 모두 잘 작동함
-function estimateLineCount(text, fontSizePx, maxWidthPx, fontFace = FONT) {
+// 텍스트가 주어진 너비에 몇 줄로 표시될지 추정
+// Canvas 측정 + 글자별 추정 두 방법을 적절히 조합
+//  - Canvas: 폰트 로드된 상태에서 정확. bold 처리도 자동으로 반영됨.
+//  - Char-based: 폰트 무관 fallback. bold일 때 별도 가중치 적용 필요.
+function estimateLineCount(text, fontSizePx, maxWidthPx, isBold = false) {
   if (!text) return 0;
-  const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d');
-  ctx.font = `${fontSizePx}px ${fontFace}, sans-serif`;
-  const totalWidth = ctx.measureText(text).width;
-  // 한글/영문 모두 단순화: 전체 폭 / 줄 폭 ≈ 줄 수
+
+  // 방법 1: Canvas measureText (bold 자동 반영)
+  let measured = 0;
+  try {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    ctx.font = `${isBold ? 'bold ' : ''}${fontSizePx}px ${FONT}, sans-serif`;
+    measured = ctx.measureText(text).width;
+  } catch (e) { /* ignore */ }
+
+  // 방법 2: 글자별 평균 폭 추정 (fallback용 — bold 가중치 별도 적용 필요)
+  let charBased = [...text].reduce((sum, ch) => {
+    if (/[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(ch))         return sum + fontSizePx * 1.0;   // 한글
+    if (/[A-Z0-9]/.test(ch))                  return sum + fontSizePx * 0.65;  // 대문자/숫자
+    if (/[a-z]/.test(ch))                     return sum + fontSizePx * 0.55;  // 소문자
+    if (/\s/.test(ch))                        return sum + fontSizePx * 0.30;  // 공백
+    return sum + fontSizePx * 0.55;                                            // 기타
+  }, 0);
+  if (isBold) charBased *= 1.07;  // char-based에만 bold 가중치 적용
+
+  // Canvas 측정이 신뢰할 만하면 (char-based의 85% 이상) Canvas 우선,
+  // 아니면 (= 폰트 미로드 추정) char-based 사용
+  const baseWidth = (measured >= charBased * 0.85) ? measured : Math.max(measured, charBased);
+
+  // 안전 버퍼: 3% (이전 5%에서 축소 — 이중 계산 버그 수정으로 더 정확해짐)
+  const totalWidth = baseWidth * 1.03;
+
   return Math.max(1, Math.ceil(totalWidth / maxWidthPx));
 }
 
 // Divider Title 자동 맞춤: 1줄이면 그대로, 2줄+이면 폰트 줄이고 박스 높이 늘림
 // 반환: { fontSize, h, overviewY }
 function fitDividerTitle(text, base, autoFit) {
-  const oneLineCount = estimateLineCount(text, base.fontSize, base.w);
+  const isBold = !!base.bold;
+  const oneLineCount = estimateLineCount(text, base.fontSize, base.w, isBold);
 
   // 1줄이면 원본 설정 그대로
   if (oneLineCount <= 1) {
@@ -578,7 +613,7 @@ function fitDividerTitle(text, base, autoFit) {
 
   // 2줄+이면 폰트 줄이고 다시 측정 — 단, 최소 2줄 공간 확보
   const newFontSize = autoFit.multilineFontSize;
-  const newLineCount = Math.max(2, estimateLineCount(text, newFontSize, base.w));
+  const newLineCount = Math.max(2, estimateLineCount(text, newFontSize, base.w, isBold));
   const newH = Math.ceil(newFontSize * autoFit.lineHeight * newLineCount);
 
   return {
@@ -588,46 +623,67 @@ function fitDividerTitle(text, base, autoFit) {
   };
 }
 
-// Agenda Title 자동 맞춤 (행 시작점 기준 상대 좌표 반환)
-// 반환: { fontSize, h, overviewOffsetY }
+// Agenda Title 자동 맞춤 — 폰트 크기는 유지, 줄바꿈만 반영해서 박스 높이/Overview Y 조정
+// (Section title이 길어져도 폰트는 작아지지 않음)
+// 반환: { fontSize, h, overviewOffsetY, lineCount }
 function fitAgendaTitle(text, base, autoFit, baseTitleOffsetY, baseOverviewOffsetY) {
-  const oneLineCount = estimateLineCount(text, base.fontSize, base.w);
+  const isBold = !!base.bold;
+  const lineCount = estimateLineCount(text, base.fontSize, base.w, isBold);
 
   // 1줄이면 원본 설정 그대로
-  if (oneLineCount <= 1) {
+  if (lineCount <= 1) {
     return {
       fontSize: base.fontSize,
       h: base.h,
       overviewOffsetY: baseOverviewOffsetY,
+      lineCount: 1,
     };
   }
 
-  // 2줄+이면 폰트 줄이고 박스 높이 + Overview Y 동적 계산 (최소 2줄 보장)
-  const newFontSize = autoFit.multilineFontSize;
-  const newLineCount = Math.max(2, estimateLineCount(text, newFontSize, base.w));
-  const newH = Math.ceil(newFontSize * autoFit.lineHeight * newLineCount);
+  // 2줄+이면 폰트는 그대로 유지, 박스 높이만 늘리고 Overview Y 밀어냄
+  const newH = Math.ceil(base.fontSize * autoFit.lineHeight * lineCount);
 
   return {
-    fontSize: newFontSize,
+    fontSize: base.fontSize,
     h: newH,
     overviewOffsetY: baseTitleOffsetY + newH + autoFit.overviewGap,
+    lineCount: lineCount,
   };
 }
 
 // Inner Title 자동 맞춤: 1줄에 들어갈 때까지 폰트 점진적으로 축소 (박스 크기는 고정)
 // 반환: { fontSize }
 function fitInnerTitle(text, base, autoFit) {
+  const isBold = !!base.bold;
   // 기본 폰트로 1줄에 들어가면 그대로
-  if (estimateLineCount(text, base.fontSize, base.w) <= 1) {
+  if (estimateLineCount(text, base.fontSize, base.w, isBold) <= 1) {
     return { fontSize: base.fontSize };
   }
   // 1줄에 들어가는 가장 큰 폰트 크기 찾기 (기본 → 최소까지 step씩 줄임)
   for (let fs = base.fontSize - autoFit.step; fs >= autoFit.minFontSize; fs -= autoFit.step) {
-    if (estimateLineCount(text, fs, base.w) <= 1) {
+    if (estimateLineCount(text, fs, base.w, isBold) <= 1) {
       return { fontSize: fs };
     }
   }
-  // 최소까지 줄여도 안 들어가면 최소 폰트로 (PowerPoint의 shrinkText가 추가 처리)
+  // 최소까지 줄여도 안 들어가면 최소 폰트로
+  return { fontSize: autoFit.minFontSize };
+}
+
+// Cover Main Title 자동 맞춤: maxLines 이내로 들어갈 때까지 폰트 점진적으로 축소
+// 반환: { fontSize }
+function fitCoverTitle(text, base, autoFit) {
+  const isBold = !!base.bold;
+  const maxLines = autoFit.maxLines || 2;
+  // 기본 폰트로 maxLines 이내면 그대로
+  if (estimateLineCount(text, base.fontSize, base.w, isBold) <= maxLines) {
+    return { fontSize: base.fontSize };
+  }
+  // maxLines 이내로 들어가는 가장 큰 폰트 크기 찾기
+  for (let fs = base.fontSize - autoFit.step; fs >= autoFit.minFontSize; fs -= autoFit.step) {
+    if (estimateLineCount(text, fs, base.w, isBold) <= maxLines) {
+      return { fontSize: fs };
+    }
+  }
   return { fontSize: autoFit.minFontSize };
 }
 
@@ -702,6 +758,11 @@ async function generate() {
   btn.querySelector('.btn-label').textContent = 'Generating...';
 
   try {
+    // Pretendard 폰트 로드 완료를 기다림 (measureText 정확도 보장)
+    if (document.fonts && document.fonts.ready) {
+      try { await document.fonts.ready; } catch (e) { /* ignore */ }
+    }
+
     const pres = new PptxGenJS();
     pres.layout = 'LAYOUT_16x9';
     const C = CONFIG;
@@ -709,7 +770,8 @@ async function generate() {
     // ─── 1. 표지 ──────────────────────────────────────────────
     const cover = pres.addSlide();
     cover.background = { data: BG.cover };
-    cover.addText(mainTitle.toUpperCase(), opt(C.cover.mainTitle));
+    cover.addText(mainTitle.toUpperCase(),
+      opt(C.cover.mainTitle, fitCoverTitle(mainTitle.toUpperCase(), C.cover.mainTitle, C.cover.titleAutoFit)));
     cover.addText(speaker,                 opt(C.cover.speaker));
     cover.addText(affiliation,             opt(C.cover.affiliation));
 
@@ -746,20 +808,24 @@ async function generate() {
         C.agenda.overviewOffsetY
       );
 
+      // shrinkText:false → 우리가 계산한 폰트가 PPT에서 그대로 적용됨
       agenda.addText(sec.title, opt(C.agenda.title, {
         x: baseX + C.agenda.titleOffsetX,
         y: baseY + C.agenda.titleOffsetY,
         fontSize: aFit.fontSize,
         h:        aFit.h,
+        shrinkText: false,
       }));
       if (sec.overview) agenda.addText(sec.overview, opt(C.agenda.overview, {
         x: baseX + C.agenda.titleOffsetX,
         y: baseY + aFit.overviewOffsetY,
       }));
 
-      // 이 행이 실제로 차지한 높이 = max(기본 rowH, 늘어난 컨텐츠 높이)
-      // 늘어난 케이스: Overview 박스의 끝이 기본 rowH보다 아래로 갈 때
-      const contentH = aFit.overviewOffsetY + C.agenda.overview.h;
+      // 이 행이 실제로 차지한 높이 = max(기본 rowH, 컨텐츠 높이 + 행 간 여백)
+      // - 1줄 케이스(기본): rowH(121) 사용
+      // - 2줄+ 케이스: 늘어난 컨텐츠가 다음 행 구분선과 적절히 떨어지도록 ROW_GAP 추가
+      const ROW_GAP = 24;  // 늘어난 행과 다음 행 사이 시각적 여백
+      const contentH = aFit.overviewOffsetY + C.agenda.overview.h + ROW_GAP;
       nextRowY[col] = baseY + Math.max(C.agenda.rowH, contentH);
     });
     addFooter(agenda, mainTitle, speaker);
@@ -775,6 +841,7 @@ async function generate() {
       d.addText(sec.title, opt(C.divider.title, {
         fontSize: fit.fontSize,
         h:        fit.h,
+        shrinkText: false,
       }));
       if (sec.overview) d.addText(sec.overview, opt(C.divider.overview, {
         y: fit.overviewY,
@@ -785,7 +852,8 @@ async function generate() {
       const inner = pres.addSlide();
       inner.background = { data: BG.inner };
       const iFit = fitInnerTitle(sec.title, C.inner.title, C.inner.titleAutoFit);
-      inner.addText(sec.title, opt(C.inner.title, { fontSize: iFit.fontSize }));
+      // shrinkText:false → 우리가 계산한 폰트가 PPT에서 그대로 적용됨
+      inner.addText(sec.title, opt(C.inner.title, { fontSize: iFit.fontSize, shrinkText: false }));
       if (sec.overview) inner.addText(sec.overview, opt(C.inner.overview));
       addFooter(inner, mainTitle, speaker);
     });
