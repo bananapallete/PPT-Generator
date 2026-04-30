@@ -713,10 +713,10 @@ async function generate() {
     cover.addText(speaker,                 opt(C.cover.speaker));
     cover.addText(affiliation,             opt(C.cover.affiliation));
 
-    // ─── 2. 목차 ──────────────────────────────────────────────
-    const agenda = pres.addSlide();
+  // ─── 2. 목차 ──────────────────────────────────────────────
+  const agenda = pres.addSlide();
     agenda.background = { data: BG.agenda };
-    sections.forEach((sec, i) => {
+
     // 두 컬럼 각각의 다음 행 시작 Y를 추적 (행이 길어지면 다음 행이 아래로 밀림)
     const nextRowY = [C.agenda.startY, C.agenda.startY];
 
