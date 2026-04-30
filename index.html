@@ -487,6 +487,13 @@ const CONFIG = {
     number:   { w: 75,  h: 40, fontSize: 40, bold: true, color: '157CBF' },
     title:    { w: 690, h: 32, fontSize: 35, bold: true },
     overview: { w: 690, h: 22, fontSize: 20, color: '696969' },
+
+    // Title이 길어서 2줄 이상이 될 때 적용 (한 행 내에서)
+    titleAutoFit: {
+      multilineFontSize: 26,    // 여러 줄일 때 폰트 (1줄: 35px, 2줄+: 26px)
+      lineHeight:        1.2,   // 줄 간격
+      overviewGap:       8,     // Title 박스 끝과 Overview 사이 간격 (px)
+    },
   },
 
   // ─── 3. 간지 (Divider) ─────────────────────────────────────────
@@ -494,6 +501,13 @@ const CONFIG = {
     number:   { x: 66,  y: 99,  w: 1700, h: 80,  fontSize: 65 },
     title:    { x: 66,  y: 213, w: 1700, h: 140, fontSize: 115, lineSpacingMultiple: 1.1 },
     overview: { x: 72,  y: 355, w: 1700, h: 50,  fontSize: 38 },
+
+    // Title이 길어서 2줄 이상이 될 때 적용되는 설정
+    titleAutoFit: {
+      multilineFontSize: 80,    // 여러 줄일 때 폰트 크기 (1줄: 115px, 2줄+: 80px)
+      lineHeight:        1.15,  // 줄 간격 (1.0 = 폰트 크기와 같음)
+      overviewGap:       20,    // Title 박스 끝과 Overview 시작점 간격 (px)
+    },
   },
 
   // ─── 4. 내지 (Inner) ───────────────────────────────────────────
@@ -505,7 +519,7 @@ const CONFIG = {
   // ─── 5. 푸터 (목차/간지/내지 공통) ──────────────────────────────
   footer: {
     left:  { x: 80,   y: 981, w: 700, h: 28, fontSize: 20 },
-    right: { x: 1573, y: 981, w: 350, h: 28, fontSize: 20, align: 'right' },
+    right: { x: 1490, y: 981, w: 350, h: 28, fontSize: 20, align: 'right' },
   },
 };
 
@@ -527,6 +541,70 @@ function opt(c, override = {}) {
     margin: 0,
     shrinkText: o.shrinkText !== false,
     ...(o.lineSpacingMultiple ? { lineSpacingMultiple: o.lineSpacingMultiple } : {}),
+  };
+}
+
+// 텍스트가 주어진 너비에 몇 줄로 표시될지 추정 (Canvas measureText 사용)
+// Pretendard 기준 — 한글/영문 모두 잘 작동함
+function estimateLineCount(text, fontSizePx, maxWidthPx, fontFace = FONT) {
+  if (!text) return 0;
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  ctx.font = `${fontSizePx}px ${fontFace}, sans-serif`;
+  const totalWidth = ctx.measureText(text).width;
+  // 한글/영문 모두 단순화: 전체 폭 / 줄 폭 ≈ 줄 수
+  return Math.max(1, Math.ceil(totalWidth / maxWidthPx));
+}
+
+// Divider Title 자동 맞춤: 1줄이면 그대로, 2줄+이면 폰트 줄이고 박스 높이 늘림
+// 반환: { fontSize, h, overviewY }
+function fitDividerTitle(text, base, autoFit) {
+  const oneLineCount = estimateLineCount(text, base.fontSize, base.w);
+
+  // 1줄이면 원본 설정 그대로
+  if (oneLineCount <= 1) {
+    return {
+      fontSize: base.fontSize,
+      h: base.h,
+      overviewY: base.y + base.h + autoFit.overviewGap,
+    };
+  }
+
+  // 2줄+이면 폰트 줄이고 다시 측정 — 단, 최소 2줄 공간 확보
+  const newFontSize = autoFit.multilineFontSize;
+  const newLineCount = Math.max(2, estimateLineCount(text, newFontSize, base.w));
+  const newH = Math.ceil(newFontSize * autoFit.lineHeight * newLineCount);
+
+  return {
+    fontSize: newFontSize,
+    h: newH,
+    overviewY: base.y + newH + autoFit.overviewGap,
+  };
+}
+
+// Agenda Title 자동 맞춤 (행 시작점 기준 상대 좌표 반환)
+// 반환: { fontSize, h, overviewOffsetY }
+function fitAgendaTitle(text, base, autoFit, baseTitleOffsetY, baseOverviewOffsetY) {
+  const oneLineCount = estimateLineCount(text, base.fontSize, base.w);
+
+  // 1줄이면 원본 설정 그대로
+  if (oneLineCount <= 1) {
+    return {
+      fontSize: base.fontSize,
+      h: base.h,
+      overviewOffsetY: baseOverviewOffsetY,
+    };
+  }
+
+  // 2줄+이면 폰트 줄이고 박스 높이 + Overview Y 동적 계산 (최소 2줄 보장)
+  const newFontSize = autoFit.multilineFontSize;
+  const newLineCount = Math.max(2, estimateLineCount(text, newFontSize, base.w));
+  const newH = Math.ceil(newFontSize * autoFit.lineHeight * newLineCount);
+
+  return {
+    fontSize: newFontSize,
+    h: newH,
+    overviewOffsetY: baseTitleOffsetY + newH + autoFit.overviewGap,
   };
 }
 
@@ -632,25 +710,44 @@ async function generate() {
         x: baseX + C.agenda.numOffsetX,
         y: baseY + C.agenda.numOffsetY,
       }));
+
+      // Title 길이에 따라 폰트/높이/Overview Y 동적 조정
+      const aFit = fitAgendaTitle(
+        sec.title,
+        C.agenda.title,
+        C.agenda.titleAutoFit,
+        C.agenda.titleOffsetY,
+        C.agenda.overviewOffsetY
+      );
+
       agenda.addText(sec.title, opt(C.agenda.title, {
         x: baseX + C.agenda.titleOffsetX,
         y: baseY + C.agenda.titleOffsetY,
+        fontSize: aFit.fontSize,
+        h:        aFit.h,
       }));
       if (sec.overview) agenda.addText(sec.overview, opt(C.agenda.overview, {
         x: baseX + C.agenda.titleOffsetX,
-        y: baseY + C.agenda.overviewOffsetY,
+        y: baseY + aFit.overviewOffsetY,
       }));
     });
     addFooter(agenda, mainTitle, speaker);
 
     // ─── 3. 섹션별 간지 + 내지 ────────────────────────────────
     sections.forEach((sec, i) => {
-      // 간지
+      // 간지 — Title 길이에 따라 폰트/높이/Overview Y 동적 조정
       const d = pres.addSlide();
       d.background = { data: BG.divider };
       d.addText(String(i+1).padStart(2,'0'), opt(C.divider.number));
-      d.addText(sec.title,                   opt(C.divider.title));
-      if (sec.overview) d.addText(sec.overview, opt(C.divider.overview));
+
+      const fit = fitDividerTitle(sec.title, C.divider.title, C.divider.titleAutoFit);
+      d.addText(sec.title, opt(C.divider.title, {
+        fontSize: fit.fontSize,
+        h:        fit.h,
+      }));
+      if (sec.overview) d.addText(sec.overview, opt(C.divider.overview, {
+        y: fit.overviewY,
+      }));
       addFooter(d, mainTitle, speaker);
 
       // 내지
