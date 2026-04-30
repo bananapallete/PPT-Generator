@@ -97,40 +97,6 @@
     line-height: 1.55;
   }
 
-  /* ── 슬라이드 미리보기 칩 ───────────────────────────── */
-  .slide-strip {
-    display: flex;
-    gap: 6px;
-    margin-bottom: 32px;
-    overflow-x: auto;
-    padding-bottom: 4px;
-    scrollbar-width: thin;
-  }
-  .slide-strip::-webkit-scrollbar { height: 4px; }
-  .slide-strip::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
-
-  .slide-thumb {
-    flex-shrink: 0;
-    height: 28px;
-    padding: 0 12px;
-    border-radius: var(--r-pill);
-    background: var(--surface);
-    border: 1px solid var(--border);
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 12px;
-    font-weight: 500;
-    color: var(--text-2);
-    white-space: nowrap;
-  }
-  .slide-thumb.dynamic {
-    background: var(--primary-weak);
-    border-color: transparent;
-    color: var(--primary);
-    font-weight: 600;
-  }
-
   /* ── 카드 ───────────────────────────────────────── */
   .card {
     background: var(--surface);
@@ -174,7 +140,21 @@
     color: var(--text);
     margin-bottom: 6px;
   }
-  label .label-en {
+  /* Korean secondary label/text */
+  .label-ko, .ko-sub {
+    font-weight: 400;
+    color: var(--text-3);
+    font-size: 12px;
+    margin-left: 6px;
+    letter-spacing: 0;
+  }
+  .header p .ko-sub {
+    margin-left: 0;
+    font-size: 13px;
+    display: inline-block;
+    margin-top: 2px;
+  }
+  .card-title .ko-sub {
     font-weight: 400;
     color: var(--text-3);
     font-size: 12px;
@@ -383,77 +363,67 @@
 <body>
 <div class="page">
 
-  <!-- 헤더 -->
+  <!-- Header -->
   <div class="header">
-    <div class="header-tag">
-      <svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor"><circle cx="4" cy="4" r="4"/></svg>
-      자동 생성
-    </div>
     <h1>PPT Generator</h1>
-    <p>Input data for automated presentation generation.</p>
+    <p>Create a presentation deck instantly from your agenda.<br/><span class="ko-sub">아젠다를 입력하면 발표 자료가 자동으로 생성됩니다.</span></p>
   </div>
 
-  <!-- 슬라이드 미리보기 -->
-  <div class="slide-strip" id="slideStrip">
-    <div class="slide-thumb"><span>표지</span></div>
-    <div class="slide-thumb"><span>목차</span></div>
-  </div>
-
-  <!-- 발표 정보 -->
+  <!-- Presentation Info -->
   <div class="card">
     <div class="card-head">
       <span class="card-num">01</span>
-      <span class="card-title">발표 정보</span>
+      <span class="card-title">Presentation Info <span class="ko-sub">발표 정보</span></span>
     </div>
     <div class="field">
-      <label>발표 제목 <span class="label-en">Main Title</span></label>
-      <input type="text" id="mainTitle" placeholder="예: 2025년 상반기 사업 전략 발표" />
+      <label>Main Title <span class="label-ko">발표 제목</span></label>
+      <input type="text" id="mainTitle" placeholder="e.g. H1 2025 Business Strategy Review" />
     </div>
   </div>
 
-  <!-- 발표자 정보 -->
+  <!-- Speaker Info -->
   <div class="card">
     <div class="card-head">
       <span class="card-num">02</span>
-      <span class="card-title">발표자 정보</span>
+      <span class="card-title">Speaker Info <span class="ko-sub">발표자 정보</span></span>
     </div>
     <div class="two-col">
       <div class="field">
-        <label>발표자 <span class="label-en">Speaker</span></label>
-        <input type="text" id="speaker" placeholder="이름" />
+        <label>Speaker <span class="label-ko">발표자</span></label>
+        <input type="text" id="speaker" placeholder="Full name" />
       </div>
       <div class="field">
-        <label>소속 <span class="label-en">Affiliation</span></label>
-        <input type="text" id="affiliation" placeholder="조직 · 팀명" />
+        <label>Affiliation <span class="label-ko">소속</span></label>
+        <input type="text" id="affiliation" placeholder="Organization · Team" />
       </div>
     </div>
   </div>
 
-  <!-- 섹션 구성 -->
+  <!-- Sections -->
   <div class="card">
     <div class="card-head">
       <span class="card-num">03</span>
-      <span class="card-title">섹션 구성</span>
-      <span class="card-desc">각 섹션마다 간지 + 내지 1장씩</span>
+      <span class="card-title">Sections <span class="ko-sub">섹션 구성</span></span>
+      <span class="card-desc">1 divider + 1 inner page per section</span>
     </div>
     <div class="sections-list" id="sectionsList"></div>
     <button class="btn-add" onclick="addSection()" type="button">
       <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="7" y1="2" x2="7" y2="12"/><line x1="2" y1="7" x2="12" y2="7"/></svg>
-      섹션 추가
+      Add Section
     </button>
   </div>
 
-  <!-- 슬라이드 카운트 -->
+  <!-- Slide count -->
   <div class="slide-count">
     <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-    총 <strong id="totalSlides">2</strong>장 생성 예정
+    <strong id="totalSlides">2</strong> slides will be generated
   </div>
 
-  <!-- 생성 버튼 -->
+  <!-- Generate button -->
   <button class="btn-generate" id="generateBtn" onclick="generate()" type="button">
     <svg class="btn-icon-static" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14,2 14,8 20,8"/></svg>
     <span class="btn-icon-loading spinner"></span>
-    <span class="btn-label">PPT 파일 생성하기</span>
+    <span class="btn-label">Generate PPT File</span>
   </button>
 
 </div>
@@ -574,10 +544,10 @@ function addSection(title = '', overview = '') {
   row.innerHTML = `
     <div class="section-num">${String(num).padStart(2,'0')}</div>
     <div class="section-fields">
-      <input type="text" class="sec-title" placeholder="섹션 제목" value="${escHtml(title)}" oninput="updatePreview()" />
-      <input type="text" class="sec-overview" placeholder="짧은 설명 (선택)" value="${escHtml(overview)}" />
+      <input type="text" class="sec-title" placeholder="Section title (e.g. Introduction)" value="${escHtml(title)}" oninput="updatePreview()" />
+      <input type="text" class="sec-overview" placeholder="Short description — optional" value="${escHtml(overview)}" />
     </div>
-    <button class="btn-remove" onclick="removeSection(this)" aria-label="섹션 삭제">
+    <button class="btn-remove" onclick="removeSection(this)" aria-label="Remove section">
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><line x1="4" y1="4" x2="12" y2="12"/><line x1="12" y1="4" x2="4" y2="12"/></svg>
     </button>
   `;
@@ -600,15 +570,6 @@ function renumber() {
 
 function updatePreview() {
   const rows = document.querySelectorAll('.section-row');
-  const strip = document.getElementById('slideStrip');
-  strip.innerHTML = `
-    <div class="slide-thumb"><span>표지</span></div>
-    <div class="slide-thumb"><span>목차</span></div>`;
-  rows.forEach((_, i) => {
-    const n = String(i+1).padStart(2,'0');
-    strip.innerHTML += `<div class="slide-thumb dynamic"><span>${n} 간지</span></div>`;
-    strip.innerHTML += `<div class="slide-thumb dynamic"><span>${n} 내지</span></div>`;
-  });
   document.getElementById('totalSlides').textContent = 2 + rows.length * 2;
 }
 
@@ -630,14 +591,14 @@ async function generate() {
     overview: r.querySelector('.sec-overview').value.trim(),
   })).filter(s => s.title);
 
-  if (!mainTitle)       return toast('발표 제목을 입력해주세요.', true);
-  if (!speaker)         return toast('발표자 이름을 입력해주세요.', true);
-  if (!sections.length) return toast('섹션을 최소 1개 추가해주세요.', true);
+  if (!mainTitle)       return toast('Please enter a presentation title.', true);
+  if (!speaker)         return toast('Please enter the speaker name.', true);
+  if (!sections.length) return toast('Please add at least one section.', true);
 
   const btn = document.getElementById('generateBtn');
   btn.disabled = true;
   btn.classList.add('loading');
-  btn.querySelector('.btn-label').textContent = '생성 중...';
+  btn.querySelector('.btn-label').textContent = 'Generating...';
 
   try {
     const pres = new PptxGenJS();
@@ -702,15 +663,15 @@ async function generate() {
 
     const fileName = mainTitle.replace(/[^\w가-힣]/g, '_') + '.pptx';
     await pres.writeFile({ fileName });
-    toast('✅ PPT 생성 완료! 다운로드가 시작됩니다.');
+    toast('✅ PPT generated! Download will begin shortly.');
 
   } catch(e) {
-    toast('❌ 오류: ' + e.message, true);
+    toast('❌ Error: ' + e.message, true);
     console.error(e);
   } finally {
     btn.disabled = false;
     btn.classList.remove('loading');
-    btn.querySelector('.btn-label').textContent = 'PPT 파일 생성하기';
+    btn.querySelector('.btn-label').textContent = 'Generate PPT File';
   }
 }
 
@@ -727,10 +688,10 @@ function toast(msg, isError = false) {
   setTimeout(() => t.classList.remove('show'), 3500);
 }
 
-// 초기 샘플 섹션
-addSection('Latest Technology Trends', 'Designing the Future with Innovative Engineering Solutions');
-addSection('Engineering Case Studies', 'Real-world problem solving approaches');
-addSection('Data Analysis Strategies', 'Actionable insights from data');
+// Sample sections (placeholders — replace with your own)
+addSection('Sample Section 1 — Replace me', 'Add a short description here');
+addSection('Sample Section 2 — Replace me', 'Add a short description here');
+addSection('Sample Section 3 — Replace me', 'Add a short description here');
 
 </script>
 </body>
