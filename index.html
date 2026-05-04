@@ -223,7 +223,115 @@
     gap: 8px;
     min-width: 0;
   }
-  .section-fields input { height: 40px; font-size: 14px; }
+  .section-fields > input { height: 40px; font-size: 14px; }
+
+  /* Overview 리스트 */
+  .overview-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .overview-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .overview-item input {
+    flex: 1;
+    height: 36px;
+    font-size: 13px;
+    padding: 0 12px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--r-md);
+    font-family: inherit;
+    color: var(--text);
+    background: var(--surface);
+    transition: border-color 0.12s, box-shadow 0.12s;
+    outline: none;
+    min-width: 0;
+  }
+  .overview-item input:hover  { border-color: var(--text-3); }
+  .overview-item input:focus  { border-color: var(--primary); box-shadow: var(--shadow-focus); }
+  .overview-item input::placeholder { color: var(--text-3); }
+
+  /* 위/아래 화살표 컨트롤 */
+  .overview-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    flex-shrink: 0;
+  }
+  .btn-move {
+    width: 24px;
+    height: 18px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-2);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.12s, border-color 0.12s, color 0.12s;
+    padding: 0;
+  }
+  .btn-move-up   { border-radius: 6px 6px 0 0; border-bottom: none; }
+  .btn-move-down { border-radius: 0 0 6px 6px; }
+  .btn-move:hover:not(:disabled) {
+    background: var(--primary-weak-2);
+    border-color: var(--primary);
+    color: var(--primary);
+  }
+  .btn-move:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+
+  /* 개별 Overview 삭제 (X) */
+  .btn-remove-overview {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    border: none;
+    background: transparent;
+    color: var(--text-3);
+    cursor: pointer;
+    border-radius: var(--r-pill);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.12s, color 0.12s;
+  }
+  .btn-remove-overview:hover {
+    background: var(--danger-weak);
+    color: var(--danger);
+  }
+
+  /* "Add description" 버튼 — 박스(점선) 스타일, "Add Section" 버튼의 작은 버전 */
+  .btn-add-overview {
+    width: 100%;
+    height: 36px;
+    border: 1.5px dashed var(--border-strong);
+    background: transparent;
+    color: var(--text-2);
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    border-radius: var(--r-md);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: border-color 0.15s, color 0.15s, background 0.15s;
+    margin-top: 2px;
+  }
+  .btn-add-overview:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+    background: var(--primary-weak-2);
+    border-style: solid;
+  }
+  .btn-add-overview svg   { flex-shrink: 0; }
 
   .btn-remove {
     flex-shrink: 0;
@@ -693,24 +801,189 @@ function fitCoverTitle(text, base, autoFit) {
 
 let sectionCount = 0;
 
-function addSection(title = '', overview = '') {
+// SVG 아이콘들 (재사용)
+const ICON_X        = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><line x1="4" y1="4" x2="12" y2="12"/><line x1="12" y1="4" x2="4" y2="12"/></svg>`;
+const ICON_UP       = `<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,8 7,4 11,8"/></svg>`;
+const ICON_DOWN     = `<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,6 7,10 11,6"/></svg>`;
+const ICON_PLUS_SM  = `<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="6" y1="2" x2="6" y2="10"/><line x1="2" y1="6" x2="10" y2="6"/></svg>`;
+
+function addSection(title = '', overviews = ['']) {
   sectionCount++;
+  // overviews는 배열 — 빈 배열이면 빈 항목 1개로 초기화
+  if (!Array.isArray(overviews)) overviews = [overviews || ''];
+  if (overviews.length === 0) overviews = [''];
+
   const row = document.createElement('div');
   row.className = 'section-row';
   const num = document.querySelectorAll('.section-row').length + 1;
+
+  const overviewItemsHtml = overviews.map(ov => overviewItemHtml(ov)).join('');
+
   row.innerHTML = `
     <div class="section-num">${String(num).padStart(2,'0')}</div>
     <div class="section-fields">
       <input type="text" class="sec-title" placeholder="Section title (e.g. Introduction)" value="${escHtml(title)}" oninput="updatePreview()" />
-      <input type="text" class="sec-overview" placeholder="Short description — optional" value="${escHtml(overview)}" />
+      <div class="overview-list">${overviewItemsHtml}</div>
+      <button class="btn-add-overview" type="button" onclick="addOverview(this)">
+        ${ICON_PLUS_SM}<span>Add description</span>
+      </button>
     </div>
-    <button class="btn-remove" onclick="removeSection(this)" aria-label="Remove section">
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><line x1="4" y1="4" x2="12" y2="12"/><line x1="12" y1="4" x2="4" y2="12"/></svg>
-    </button>
+    <button class="btn-remove" onclick="removeSection(this)" aria-label="Remove section">${ICON_X}</button>
   `;
   document.getElementById('sectionsList').appendChild(row);
+  updateOverviewControls(row);
   updatePreview();
   row.querySelector('.sec-title').focus();
+}
+
+// 단일 Overview 입력 항목 HTML
+function overviewItemHtml(value = '') {
+  return `
+    <div class="overview-item">
+      <div class="overview-controls">
+        <button type="button" class="btn-move btn-move-up"   onclick="moveOverview(this, -1)" aria-label="Move up">${ICON_UP}</button>
+        <button type="button" class="btn-move btn-move-down" onclick="moveOverview(this, 1)"  aria-label="Move down">${ICON_DOWN}</button>
+      </div>
+      <input type="text" class="sec-overview" placeholder="Short description — optional" value="${escHtml(value)}" onkeydown="onOverviewKey(event, this)" />
+      <button type="button" class="btn-remove-overview" onclick="removeOverview(this)" aria-label="Remove description">${ICON_X}</button>
+    </div>
+  `;
+}
+
+// 새 Overview 항목 추가
+//  - btn이 .btn-add-overview면: 섹션의 맨 아래에 추가
+//  - btn이 input(.sec-overview)이면: 그 input 바로 아래에 삽입
+function addOverview(btn) {
+  const row = btn.closest('.section-row');
+  const list = row.querySelector('.overview-list');
+  const tmp = document.createElement('div');
+  tmp.innerHTML = overviewItemHtml('').trim();
+  const newItem = tmp.firstElementChild;
+
+  // 입력창에서 호출된 경우 → 그 항목 바로 다음에 삽입
+  const fromItem = btn.closest('.overview-item');
+  if (fromItem && list.contains(fromItem)) {
+    list.insertBefore(newItem, fromItem.nextSibling);
+  } else {
+    list.appendChild(newItem);
+  }
+
+  updateOverviewControls(row);
+  newItem.querySelector('input').focus();
+}
+
+// Overview 입력 중 키보드 처리
+//  - Enter: 바로 아래에 새 Overview 추가 (포커스 이동)
+//  - Backspace/Delete (입력칸이 비어있을 때): 해당 항목 삭제 + 이웃 입력칸으로 포커스 이동
+function onOverviewKey(e, input) {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    addOverview(input);
+    return;
+  }
+
+  if ((e.key === 'Backspace' || e.key === 'Delete') && input.value === '') {
+    const item = input.closest('.overview-item');
+    const row  = item.closest('.section-row');
+    const items = row.querySelectorAll('.overview-item');
+
+    // 1개만 남은 경우는 삭제하지 않음 (구조 유지)
+    if (items.length <= 1) return;
+
+    e.preventDefault();
+
+    // 포커스 이동 대상 결정 — Backspace는 위, Delete는 아래
+    const sibling = e.key === 'Backspace'
+      ? (item.previousElementSibling || item.nextElementSibling)
+      : (item.nextElementSibling || item.previousElementSibling);
+
+    item.remove();
+    updateOverviewControls(row);
+
+    if (sibling) {
+      const siblingInput = sibling.querySelector('input');
+      siblingInput.focus();
+      // Backspace로 위 항목으로 갈 땐 커서를 끝에 두기
+      if (e.key === 'Backspace') {
+        const len = siblingInput.value.length;
+        siblingInput.setSelectionRange(len, len);
+      } else {
+        siblingInput.setSelectionRange(0, 0);
+      }
+    }
+  }
+}
+
+// Overview 항목 삭제 (단, 최소 1개는 유지)
+function removeOverview(btn) {
+  const row = btn.closest('.section-row');
+  const items = row.querySelectorAll('.overview-item');
+  if (items.length <= 1) {
+    // 1개만 남았으면 삭제 대신 내용만 비움
+    btn.closest('.overview-item').querySelector('input').value = '';
+    return;
+  }
+  btn.closest('.overview-item').remove();
+  updateOverviewControls(row);
+}
+
+// Overview 항목 위/아래 이동
+// FLIP 기법으로 부드러운 위치 교체 애니메이션 (0.25s ease-in-out)
+function moveOverview(btn, dir) {
+  const item = btn.closest('.overview-item');
+  const list = item.parentElement;
+
+  // 이동할 대상이 없으면 종료
+  const swapTarget = dir < 0 ? item.previousElementSibling : item.nextElementSibling;
+  if (!swapTarget) return;
+
+  // FLIP: First — 이동 전 두 항목의 현재 위치 기록
+  const items = [item, swapTarget];
+  const firstRects = items.map(el => el.getBoundingClientRect());
+
+  // Last — DOM 재배치
+  if (dir < 0) {
+    list.insertBefore(item, swapTarget);
+  } else {
+    list.insertBefore(swapTarget, item);
+  }
+
+  // Invert — 새 위치에서 기존 위치로 즉시 옮긴 것처럼 transform 적용
+  items.forEach((el, i) => {
+    const lastRect = el.getBoundingClientRect();
+    const dy = firstRects[i].top - lastRect.top;
+    if (dy === 0) return;
+    el.style.transition = 'none';
+    el.style.transform  = `translateY(${dy}px)`;
+  });
+
+  // Play — 다음 프레임에 transform 제거하면서 transition으로 부드럽게 복귀
+  requestAnimationFrame(() => {
+    items.forEach(el => {
+      el.style.transition = 'transform 0.25s ease-in-out';
+      el.style.transform  = '';
+    });
+    // 애니메이션 끝나면 inline style 제거
+    setTimeout(() => {
+      items.forEach(el => {
+        el.style.transition = '';
+        el.style.transform  = '';
+      });
+    }, 280);
+  });
+
+  updateOverviewControls(item.closest('.section-row'));
+}
+
+// 위/아래 화살표 활성화 상태 갱신 (첫 항목은 ↑ 비활성, 마지막 항목은 ↓ 비활성)
+function updateOverviewControls(row) {
+  const items = row.querySelectorAll('.overview-item');
+  items.forEach((item, i) => {
+    const upBtn   = item.querySelector('.btn-move-up');
+    const downBtn = item.querySelector('.btn-move-down');
+    upBtn.disabled   = (i === 0);
+    downBtn.disabled = (i === items.length - 1);
+  });
 }
 
 function removeSection(btn) {
@@ -743,10 +1016,17 @@ async function generate() {
   const speaker     = document.getElementById('speaker').value.trim();
   const affiliation = document.getElementById('affiliation').value.trim();
   const rows        = document.querySelectorAll('.section-row');
-  const sections    = Array.from(rows).map(r => ({
-    title:    r.querySelector('.sec-title').value.trim(),
-    overview: r.querySelector('.sec-overview').value.trim(),
-  })).filter(s => s.title);
+  const sections    = Array.from(rows).map(r => {
+    const overviews = Array.from(r.querySelectorAll('.sec-overview'))
+      .map(i => i.value.trim())
+      .filter(v => v);  // 빈 항목 제외
+    return {
+      title: r.querySelector('.sec-title').value.trim(),
+      overviews: overviews,
+      // 호환용 — 첫 줄만 사용하는 슬라이드(divider, inner)에서는 첫 번째 overview를 single string으로
+      overview: overviews[0] || '',
+    };
+  }).filter(s => s.title);
 
   if (!mainTitle)       return toast('Please enter a presentation title.', true);
   if (!speaker)         return toast('Please enter the speaker name.', true);
@@ -816,21 +1096,31 @@ async function generate() {
         h:        aFit.h,
         shrinkText: false,
       }));
-      if (sec.overview) agenda.addText(sec.overview, opt(C.agenda.overview, {
-        x: baseX + C.agenda.titleOffsetX,
-        y: baseY + aFit.overviewOffsetY,
-      }));
 
-      // 이 행이 실제로 차지한 높이 = max(기본 rowH, 컨텐츠 높이 + 행 간 여백)
-      // - 1줄 케이스(기본): rowH(121) 사용
-      // - 2줄+ 케이스: 늘어난 컨텐츠가 다음 행 구분선과 적절히 떨어지도록 ROW_GAP 추가
-      const ROW_GAP = 24;  // 늘어난 행과 다음 행 사이 시각적 여백
-      const contentH = aFit.overviewOffsetY + C.agenda.overview.h + ROW_GAP;
+      // Overview 여러 개를 세로로 쌓아서 표시
+      // 첫 번째는 Title 바로 아래(aFit.overviewOffsetY), 그 다음부턴 overviewLineH 간격으로
+      const overviewLineH = Math.ceil(C.agenda.overview.fontSize * (C.agenda.titleAutoFit.lineHeight || 1.2));
+      const overviews = sec.overviews && sec.overviews.length ? sec.overviews : (sec.overview ? [sec.overview] : []);
+      overviews.forEach((ov, ovIdx) => {
+        agenda.addText(ov, opt(C.agenda.overview, {
+          x: baseX + C.agenda.titleOffsetX,
+          y: baseY + aFit.overviewOffsetY + ovIdx * overviewLineH,
+        }));
+      });
+
+      // 이 행이 실제로 차지한 높이 계산
+      const ROW_GAP = 24;
+      const lastOverviewY = aFit.overviewOffsetY + Math.max(0, overviews.length - 1) * overviewLineH;
+      const contentH = lastOverviewY + C.agenda.overview.h + ROW_GAP;
       nextRowY[col] = baseY + Math.max(C.agenda.rowH, contentH);
     });
     addFooter(agenda, mainTitle, speaker);
 
     // ─── 3. 섹션별 간지 + 내지 ────────────────────────────────
+    // 디버깅: 각 섹션이 받은 폰트 사이즈를 콘솔에 출력
+    // 같은 텍스트인데 폰트가 다르게 나오면 텍스트가 실제로 다르다는 뜻 (예: em-dash vs hyphen)
+    const debugRows = [];
+
     sections.forEach((sec, i) => {
       // 간지 — Title 길이에 따라 폰트/높이/Overview Y 동적 조정
       const d = pres.addSlide();
@@ -856,7 +1146,21 @@ async function generate() {
       inner.addText(sec.title, opt(C.inner.title, { fontSize: iFit.fontSize, shrinkText: false }));
       if (sec.overview) inner.addText(sec.overview, opt(C.inner.overview));
       addFooter(inner, mainTitle, speaker);
+
+      // 디버깅 정보 수집
+      debugRows.push({
+        '#':          i + 1,
+        'title':      sec.title,
+        'length':     sec.title.length,
+        'has em-dash (—)': sec.title.includes('—'),
+        'has hyphen (-)':  sec.title.includes('-'),
+        'inner fontSize':   iFit.fontSize + 'px',
+        'divider fontSize': fit.fontSize + 'px',
+      });
     });
+
+    // 콘솔에 표 형태로 출력 — 브라우저 개발자 도구(F12)의 Console 탭에서 확인
+    console.table(debugRows);
 
     const fileName = mainTitle.replace(/[^\w가-힣]/g, '_') + '.pptx';
     await pres.writeFile({ fileName });
@@ -886,9 +1190,9 @@ function toast(msg, isError = false) {
 }
 
 // Sample sections (placeholders — replace with your own)
-addSection('Sample Section 1 — Replace me', 'Add a short description here');
-addSection('Sample Section 2 — Replace me', 'Add a short description here');
-addSection('Sample Section 3 — Replace me', 'Add a short description here');
+addSection('Sample Section 1 — Replace me', ['Add a short description here']);
+addSection('Sample Section 2 — Replace me', ['Add a short description here']);
+addSection('Sample Section 3 — Replace me', ['Add a short description here']);
 
 </script>
 </body>
